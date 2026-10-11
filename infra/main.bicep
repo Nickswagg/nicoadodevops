@@ -1,4 +1,4 @@
-targetScope = 'resourceGroup'
+targetScope = 'subscription'
 
 @description('Base name for resources, e.g. nicoshop.')
 param baseName string
@@ -7,7 +7,11 @@ param baseName string
 @allowed(['dev', 'test', 'prod'])
 param environment string = 'dev'
 
-param location string = resourceGroup().location
+@description('Name of the resource group to create.')
+param resourceGroupName string = 'rg-${baseName}-${environment}'
+
+@description('Azure region for the resource group and app resources.')
+param location string = deployment().location
 
 @description('App Service Plan SKU.')
 param skuName string = 'P1v3'
@@ -18,14 +22,24 @@ param javaVersion string = '17'
 @allowed(['JAVA', 'TOMCAT'])
 param javaContainer string = 'JAVA'
 
-var suffix = uniqueString(resourceGroup().id)
+var suffix = uniqueString(subscription().subscriptionId, resourceGroupName)
 var tags = {
   app: baseName
   environment: environment
 }
 
+module resourceGroupDeployment 'modules/resourceGroup.bicep' = {
+  name: 'resourceGroup'
+  params: {
+    name: resourceGroupName
+    location: location
+    tags: tags
+  }
+}
+
 module plan 'modules/appServicePlan.bicep' = {
   name: 'appServicePlan'
+  scope: resourceGroup(resourceGroupName)
   params: {
     name: 'asp-${baseName}-${environment}'
     location: location
@@ -36,6 +50,7 @@ module plan 'modules/appServicePlan.bicep' = {
 
 module app 'modules/appService.bicep' = {
   name: 'appService'
+  scope: resourceGroup(resourceGroupName)
   params: {
     name: 'app-${baseName}-${environment}-${suffix}'
     location: location
@@ -50,5 +65,6 @@ module app 'modules/appService.bicep' = {
   }
 }
 
+output resourceGroupName string = resourceGroupDeployment.outputs.name
 output webAppName string = app.outputs.name
 output webAppUrl string = 'https://${app.outputs.defaultHostName}'

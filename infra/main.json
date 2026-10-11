@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.47.16.16243",
-      "templateHash": "2292728229047623967"
+      "templateHash": "18045150947019029947"
     }
   },
   "parameters": {
@@ -43,7 +43,7 @@
     },
     "skuName": {
       "type": "string",
-      "defaultValue": "P1v3",
+      "defaultValue": "B1",
       "metadata": {
         "description": "App Service Plan SKU."
       }
@@ -249,7 +249,10 @@
             }
           }
         }
-      }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'resourceGroup')]"
+      ]
     },
     {
       "type": "Microsoft.Resources/deployments",

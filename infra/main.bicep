@@ -14,7 +14,7 @@ param resourceGroupName string = 'rg-${baseName}-${environment}'
 param location string = deployment().location
 
 @description('App Service Plan SKU.')
-param skuName string = 'P1v3'
+param skuName string = 'B1'
 
 @allowed(['8', '11', '17', '21'])
 param javaVersion string = '17'
@@ -38,6 +38,7 @@ module resourceGroupDeployment 'modules/resourceGroup.bicep' = {
 }
 
 module plan 'modules/appServicePlan.bicep' = {
+  dependsOn: [resourceGroupDeployment]
   name: 'appServicePlan'
   scope: resourceGroup(resourceGroupName)
   params: {
@@ -49,6 +50,7 @@ module plan 'modules/appServicePlan.bicep' = {
 }
 
 module app 'modules/appService.bicep' = {
+  dependsOn:[plan]
   name: 'appService'
   scope: resourceGroup(resourceGroupName)
   params: {

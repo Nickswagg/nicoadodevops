@@ -30,6 +30,7 @@ pool:
 steps:
 
 - bash: |
+    ENVIRONMENT=$(printf '%s' "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]')
     case "$ENVIRONMENT" in
       dev|qa|prod) ;;
       *) echo "Unsupported environment '$ENVIRONMENT'. Check the selected variable group."; exit 1 ;;
@@ -38,6 +39,7 @@ steps:
       echo "Variable group environment '$ENVIRONMENT' does not match selected environment '$EXPECTED_ENVIRONMENT'."
       exit 1
     fi
+    echo "##vso[task.setvariable variable=environment]$ENVIRONMENT"
   displayName: Validate deployment environment
   env:
     ENVIRONMENT: $(environment)
@@ -61,3 +63,42 @@ steps:
     location: 'Central US'
     templateFile: infra/main.bicep
     parametersFile: infra/main.bicepparam
+
+- task: AzureCLI@2
+  displayName: Build and push container images to ACR
+  inputs:
+    azureSubscription: 'Azure subscription 1 (62ed0d45-af9c-47cb-9fbf-9471d8b84fec)'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+
+      resource_group="rg-nicoshop-${ENVIRONMENT}"
+      acr_name=$(az acr list \
+        --resource-group "$resource_group" \
+        --query '[0].name' \
+        --output tsv)
+
+      if [ -z "$acr_name" ] || [ "$acr_name" = "None" ]; then
+        echo "No Azure Container Registry found in resource group '$resource_group'."
+        exit 1
+      fi
+
+      login_server=$(az acr show \
+        --name "$acr_name" \
+        --query loginServer \
+        --output tsv)
+      image_tag="${ENVIRONMENT}-${BUILD_ID}"
+
+      az acr login --name "$acr_name"
+
+      docker build -t "${login_server}/frontend:${image_tag}" three-tier-ecommerce/frontend
+      docker build -t "${login_server}/backend:${image_tag}" three-tier-ecommerce/backend
+      docker build -t "${login_server}/database:${image_tag}" three-tier-ecommerce/database
+
+      docker push "${login_server}/frontend:${image_tag}"
+      docker push "${login_server}/backend:${image_tag}"
+      docker push "${login_server}/database:${image_tag}"
+  env:
+    ENVIRONMENT: $(environment)
+    BUILD_ID: $(Build.BuildId)

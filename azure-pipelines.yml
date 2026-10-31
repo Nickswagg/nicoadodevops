@@ -1,0 +1,22 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- task: BicepDeploy@0
+  displayName: 'Bicep create central-us'
+  inputs:
+    scope: subscription
+    name: 'central-us'
+    azureResourceManagerConnection: 'Azure subscription 1 (62ed0d45-af9c-47cb-9fbf-9471d8b84fec)'
+    subscriptionId: '62ed0d45-af9c-47cb-9fbf-9471d8b84fec'
+    location: 'Central US'
+    templateFile: infra/main.bicep
+    parametersFile: infra/main.bicepparam

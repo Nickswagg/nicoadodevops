@@ -11,7 +11,7 @@ param environment string = 'dev'
 param resourceGroupName string = 'rg-${baseName}-${environment}'
 
 @description('Azure region for the resource group and app resources.')
-param location string = 'eastus'
+param location string = 'centralus'
 
 @description('App Service Plan SKU.')
 param skuName string = 'B1'

@@ -10,6 +10,9 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
+
+
+
 - task: BicepDeploy@0
   displayName: 'Bicep create central-us'
   inputs:

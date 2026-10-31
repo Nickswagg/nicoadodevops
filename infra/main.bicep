@@ -48,6 +48,17 @@ module plan 'modules/appServicePlan.bicep' = {
   }
 }
 
+module devopsACR 'modules/containerRegistry.bicep' = {
+  dependsOn: [resourceGroupDeployment]
+  name: 'containerRegistry'
+  scope: resourceGroup(resourceGroupName)
+  params: {
+    name: 'devopsacr${suffix}'
+    location: location
+    tags: tags
+  }
+}
+
 module app 'modules/appService.bicep' = {
   name: 'appService'
   scope: resourceGroup(resourceGroupName)
@@ -68,3 +79,5 @@ module app 'modules/appService.bicep' = {
 output resourceGroupName string = resourceGroupDeployment.outputs.name
 output webAppName string = app.outputs.name
 output webAppUrl string = 'https://${app.outputs.defaultHostName}'
+output containerRegistryName string = devopsACR.outputs.name
+output containerRegistryLoginServer string = devopsACR.outputs.loginServer

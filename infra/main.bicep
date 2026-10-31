@@ -4,7 +4,6 @@ targetScope = 'subscription'
 param baseName string
 
 @description('Environment name.')
-@allowed(['dev', 'test', 'prod'])
 param environment string = 'dev'
 
 @description('Name of the resource group to create.')

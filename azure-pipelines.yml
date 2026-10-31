@@ -6,21 +6,56 @@
 trigger:
 - main
 
+parameters:
+- name: deploymentEnvironment
+  displayName: Deployment environment
+  type: string
+  default: Dev
+  values:
+  - Dev
+  - QA
+  - Prod
+
+variables:
+- ${{ if eq(parameters.deploymentEnvironment, 'Dev') }}:
+  - group: Dev
+- ${{ if eq(parameters.deploymentEnvironment, 'QA') }}:
+  - group: QA
+- ${{ if eq(parameters.deploymentEnvironment, 'Prod') }}:
+  - group: Prod
+
 pool:
   vmImage: ubuntu-latest
 
 steps:
 
+- bash: |
+    case "$ENVIRONMENT" in
+      dev|qa|prod) ;;
+      *) echo "Unsupported environment '$ENVIRONMENT'. Check the selected variable group."; exit 1 ;;
+    esac
+    if [ "$ENVIRONMENT" != "$EXPECTED_ENVIRONMENT" ]; then
+      echo "Variable group environment '$ENVIRONMENT' does not match selected environment '$EXPECTED_ENVIRONMENT'."
+      exit 1
+    fi
+  displayName: Validate deployment environment
+  env:
+    ENVIRONMENT: $(environment)
+    EXPECTED_ENVIRONMENT: ${{ lower(parameters.deploymentEnvironment) }}
+
 - task: replacetokens@7
   inputs:
     root: '$(System.DefaultWorkingDirectory)'
     sources: 'infra/main.bicepparam'
+    tokenPattern: custom
+    tokenPrefix: '#{'
+    tokenSuffix: '}#'
 
 - task: BicepDeploy@0
-  displayName: 'Bicep create central-us'
+  displayName: 'Bicep deploy $(environment)'
   inputs:
     scope: subscription
-    name: 'central-us'
+    name: 'nicoshop-$(environment)'
     azureResourceManagerConnection: 'Azure subscription 1 (62ed0d45-af9c-47cb-9fbf-9471d8b84fec)'
     subscriptionId: '62ed0d45-af9c-47cb-9fbf-9471d8b84fec'
     location: 'Central US'

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.47.16.16243",
-      "templateHash": "18045150947019029947"
+      "templateHash": "7779915244893147402"
     }
   },
   "parameters": {
@@ -36,7 +36,7 @@
     },
     "location": {
       "type": "string",
-      "defaultValue": "[deployment().location]",
+      "defaultValue": "eastus",
       "metadata": {
         "description": "Azure region for the resource group and app resources."
       }

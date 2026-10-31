@@ -1,0 +1,37 @@
+services:
+  db:
+    build:
+      context: ./database
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${SA_PASSWORD:-Shop_example_2026!}
+    volumes:
+      - sql-data:/var/opt/mssql
+    ports:
+      - "1433:1433"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      ConnectionStrings__Shop: "Server=db,1433;Database=ShopDb;User Id=sa;Password=${SA_PASSWORD:-Shop_example_2026!};Encrypt=True;TrustServerCertificate=True;"
+      ASPNETCORE_URLS: http://+:8080
+    depends_on:
+      - db
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  sql-data:

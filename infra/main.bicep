@@ -11,7 +11,7 @@ param environment string = 'dev'
 param resourceGroupName string = 'rg-${baseName}-${environment}'
 
 @description('Azure region for the resource group and app resources.')
-param location string = deployment().location
+param location string = 'eastus'
 
 @description('App Service Plan SKU.')
 param skuName string = 'B1'
@@ -50,7 +50,6 @@ module plan 'modules/appServicePlan.bicep' = {
 }
 
 module app 'modules/appService.bicep' = {
-  dependsOn:[plan]
   name: 'appService'
   scope: resourceGroup(resourceGroupName)
   params: {

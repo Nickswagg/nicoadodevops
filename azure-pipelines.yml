@@ -10,19 +10,19 @@ parameters:
 - name: deploymentEnvironment
   displayName: Deployment environment
   type: string
-  default: Dev
+  default: dev
   values:
-  - Dev
-  - QA
-  - Prod
+  - dev
+  - qa
+  - prod
 
 variables:
-- ${{ if eq(parameters.deploymentEnvironment, 'Dev') }}:
-  - group: Dev
-- ${{ if eq(parameters.deploymentEnvironment, 'QA') }}:
-  - group: QA
-- ${{ if eq(parameters.deploymentEnvironment, 'Prod') }}:
-  - group: Prod
+- ${{ if eq(parameters.deploymentEnvironment, 'dev') }}:
+  - group: dev
+- ${{ if eq(parameters.deploymentEnvironment, 'qa') }}:
+  - group: qa
+- ${{ if eq(parameters.deploymentEnvironment, 'prod') }}:
+  - group: prod
 
 pool:
   vmImage: ubuntu-latest

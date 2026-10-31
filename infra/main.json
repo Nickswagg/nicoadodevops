@@ -20,7 +20,7 @@
       "defaultValue": "dev",
       "allowedValues": [
         "dev",
-        "test",
+        "qa",
         "prod"
       ],
       "metadata": {

@@ -11,7 +11,10 @@ pool:
 
 steps:
 
-
+- task: replacetokens@7
+  inputs:
+    root: '$(System.DefaultWorkingDirectory)'
+    sources: 'infra/main.bicepparam'
 
 - task: BicepDeploy@0
   displayName: 'Bicep create central-us'

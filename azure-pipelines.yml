@@ -6,6 +6,7 @@
 trigger:
   branches:
     include:
+    - main
     - development
     - qa
     - production
@@ -77,11 +78,13 @@ steps:
     fi
     echo "##vso[task.setvariable variable=environment]$ENVIRONMENT"
   displayName: Validate deployment environment
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
   env:
     ENVIRONMENT: $(environment)
     BUILD_SOURCEBRANCH: $(Build.SourceBranch)
 
 - task: replacetokens@7
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
   inputs:
     root: '$(System.DefaultWorkingDirectory)'
     sources: 'infra/main.bicepparam'
@@ -91,6 +94,7 @@ steps:
 
 - task: BicepDeploy@0
   displayName: 'Bicep deploy $(environment)'
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
   inputs:
     scope: subscription
     name: 'nicoshop-$(environment)'
@@ -102,6 +106,7 @@ steps:
 
 - task: AzureCLI@2
   displayName: Build and push container images to ACR
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
   inputs:
     azureSubscription: 'Azure subscription 1 (62ed0d45-af9c-47cb-9fbf-9471d8b84fec)'
     scriptType: bash

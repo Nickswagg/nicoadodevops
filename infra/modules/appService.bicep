@@ -7,6 +7,9 @@ param location string = resourceGroup().location
 @description('Resource ID of the App Service Plan.')
 param appServicePlanId string
 
+@description('Container image reference, including registry hostname and tag.')
+param containerImage string
+
 @description('Additional app settings.')
 param appSettings array = []
 
@@ -28,7 +31,8 @@ resource app 'Microsoft.Web/sites@2023-12-01' = {
     serverFarmId: appServicePlanId
     httpsOnly: true
     siteConfig: {
-      linuxFxVersion: 'DOTNETCORE|8.0'
+      linuxFxVersion: 'DOCKER|${containerImage}'
+      acrUseManagedIdentityCreds: true
       alwaysOn: true
       http20Enabled: true
       minTlsVersion: '1.2'

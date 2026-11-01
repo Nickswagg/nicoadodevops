@@ -140,6 +140,25 @@ steps:
       docker push "${login_server}/frontend:${image_tag}"
       docker push "${login_server}/backend:${image_tag}"
       docker push "${login_server}/database:${image_tag}"
+      echo "##vso[task.setvariable variable=backendImage]${login_server}/backend:${image_tag}"
   env:
     ENVIRONMENT: $(environment)
     BUILD_ID: $(Build.BuildId)
+
+- task: AzureCLI@2
+  displayName: Deploy backend image to App Service
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
+  inputs:
+    azureSubscription: 'Azure subscription 1 (62ed0d45-af9c-47cb-9fbf-9471d8b84fec)'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      az deployment sub create \
+        --name "nicoshop-${ENVIRONMENT}-container" \
+        --location 'Central US' \
+        --template-file infra/main.bicep \
+        --parameters infra/main.bicepparam "containerImage=${BACKEND_IMAGE}"
+  env:
+    ENVIRONMENT: $(environment)
+    BACKEND_IMAGE: $(backendImage)

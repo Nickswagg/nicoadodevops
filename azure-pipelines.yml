@@ -23,6 +23,41 @@ pool:
 
 steps:
 
+- task: UseDotNet@2
+  displayName: Install .NET 8 SDK
+  inputs:
+    packageType: sdk
+    version: 8.0.x
+
+- task: DotNetCoreCLI@2
+  displayName: Restore backend dependencies
+  inputs:
+    command: restore
+    projects: three-tier-ecommerce/backend/Store.Api.csproj
+
+- task: DotNetCoreCLI@2
+  displayName: Build backend
+  inputs:
+    command: build
+    projects: three-tier-ecommerce/backend/Store.Api.csproj
+    arguments: '--configuration Release --no-restore'
+
+- task: DotNetCoreCLI@2
+  displayName: Publish backend
+  inputs:
+    command: publish
+    publishWebProjects: false
+    projects: three-tier-ecommerce/backend/Store.Api.csproj
+    arguments: '--configuration Release --no-build --output $(Build.ArtifactStagingDirectory)/backend'
+    zipAfterPublish: false
+
+- task: PublishPipelineArtifact@1
+  displayName: Publish backend build artifact
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)/backend'
+    artifact: backend-drop
+    publishLocation: pipeline
+
 - bash: |
     case "$BUILD_SOURCEBRANCH" in
       refs/heads/development) expected_environment=dev ;;

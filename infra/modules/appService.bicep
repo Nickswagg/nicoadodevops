@@ -7,17 +7,6 @@ param location string = resourceGroup().location
 @description('Resource ID of the App Service Plan.')
 param appServicePlanId string
 
-@description('Java version.')
-@allowed(['8', '11', '17', '21'])
-param javaVersion string = '17'
-
-@description('Java web container: JAVA (embedded, e.g. Spring Boot jar) or TOMCAT (war).')
-@allowed(['JAVA', 'TOMCAT'])
-param javaContainer string = 'JAVA'
-
-@description('Tomcat version (used only when javaContainer is TOMCAT).')
-param tomcatVersion string = '10.1'
-
 @description('Additional app settings.')
 param appSettings array = []
 
@@ -26,10 +15,6 @@ param healthCheckPath string = '/'
 
 @description('Resource tags.')
 param tags object = {}
-
-var linuxFxVersion = javaContainer == 'TOMCAT'
-  ? 'TOMCAT|${tomcatVersion}-java${javaVersion}'
-  : 'JAVA|${javaVersion}-java${javaVersion}'
 
 resource app 'Microsoft.Web/sites@2023-12-01' = {
   name: name
@@ -43,7 +28,7 @@ resource app 'Microsoft.Web/sites@2023-12-01' = {
     serverFarmId: appServicePlanId
     httpsOnly: true
     siteConfig: {
-      linuxFxVersion: linuxFxVersion
+      linuxFxVersion: 'DOTNETCORE|8.0'
       alwaysOn: true
       http20Enabled: true
       minTlsVersion: '1.2'

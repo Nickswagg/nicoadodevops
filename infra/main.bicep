@@ -15,12 +15,6 @@ param location string = 'centralus'
 @description('App Service Plan SKU.')
 param skuName string = 'B1'
 
-@allowed(['8', '11', '17', '21'])
-param javaVersion string = '17'
-
-@allowed(['JAVA', 'TOMCAT'])
-param javaContainer string = 'JAVA'
-
 var suffix = uniqueString(subscription().subscriptionId, resourceGroupName)
 var tags = {
   app: baseName
@@ -66,12 +60,9 @@ module app 'modules/appService.bicep' = {
     name: 'app-${baseName}-${environment}-${suffix}'
     location: location
     appServicePlanId: plan.outputs.id
-    javaVersion: javaVersion
-    javaContainer: javaContainer
     tags: tags
     appSettings: [
-      { name: 'SPRING_PROFILES_ACTIVE', value: environment }
-      { name: 'WEBSITES_PORT', value: '8080' }
+      { name: 'ASPNETCORE_ENVIRONMENT', value: environment }
     ]
   }
 }

@@ -4,24 +4,19 @@
 # https://aka.ms/yaml
 
 trigger:
-- main
-
-parameters:
-- name: deploymentEnvironment
-  displayName: Deployment environment
-  type: string
-  default: dev
-  values:
-  - dev
-  - qa
-  - prod
+  branches:
+    include:
+    - main
+    - development
+    - qa
+    - production
 
 variables:
-- ${{ if eq(parameters.deploymentEnvironment, 'dev') }}:
+- ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/development') }}:
   - group: dev
-- ${{ if eq(parameters.deploymentEnvironment, 'qa') }}:
+- ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/qa') }}:
   - group: qa
-- ${{ if eq(parameters.deploymentEnvironment, 'prod') }}:
+- ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/production') }}:
   - group: prod
 
 pool:
@@ -29,23 +24,67 @@ pool:
 
 steps:
 
+- task: UseDotNet@2
+  displayName: Install .NET 8 SDK
+  inputs:
+    packageType: sdk
+    version: 8.0.x
+
+- task: DotNetCoreCLI@2
+  displayName: Restore backend dependencies
+  inputs:
+    command: restore
+    projects: three-tier-ecommerce/backend/Store.Api.csproj
+
+- task: DotNetCoreCLI@2
+  displayName: Build backend
+  inputs:
+    command: build
+    projects: three-tier-ecommerce/backend/Store.Api.csproj
+    arguments: '--configuration Release --no-restore'
+
+- task: DotNetCoreCLI@2
+  displayName: Publish backend
+  inputs:
+    command: publish
+    publishWebProjects: false
+    projects: three-tier-ecommerce/backend/Store.Api.csproj
+    arguments: '--configuration Release --no-build --output $(Build.ArtifactStagingDirectory)/backend'
+    zipAfterPublish: false
+
+- task: PublishPipelineArtifact@1
+  displayName: Publish backend build artifact
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)/backend'
+    artifact: backend-drop
+    publishLocation: pipeline
+
 - bash: |
+    case "$BUILD_SOURCEBRANCH" in
+      refs/heads/development) expected_environment=dev ;;
+      refs/heads/qa) expected_environment=qa ;;
+      refs/heads/production) expected_environment=prod ;;
+      *) echo "Unsupported branch '$BUILD_SOURCEBRANCH'."; exit 1 ;;
+    esac
+
     ENVIRONMENT=$(printf '%s' "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]')
     case "$ENVIRONMENT" in
       dev|qa|prod) ;;
       *) echo "Unsupported environment '$ENVIRONMENT'. Check the selected variable group."; exit 1 ;;
     esac
-    if [ "$ENVIRONMENT" != "$EXPECTED_ENVIRONMENT" ]; then
-      echo "Variable group environment '$ENVIRONMENT' does not match selected environment '$EXPECTED_ENVIRONMENT'."
+    if [ "$ENVIRONMENT" != "$expected_environment" ]; then
+      echo "Variable group environment '$ENVIRONMENT' does not match branch environment '$expected_environment'."
       exit 1
     fi
     echo "##vso[task.setvariable variable=environment]$ENVIRONMENT"
   displayName: Validate deployment environment
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
   env:
     ENVIRONMENT: $(environment)
-    EXPECTED_ENVIRONMENT: ${{ lower(parameters.deploymentEnvironment) }}
+    BUILD_SOURCEBRANCH: $(Build.SourceBranch)
 
 - task: replacetokens@7
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
   inputs:
     root: '$(System.DefaultWorkingDirectory)'
     sources: 'infra/main.bicepparam'
@@ -55,6 +94,7 @@ steps:
 
 - task: BicepDeploy@0
   displayName: 'Bicep deploy $(environment)'
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
   inputs:
     scope: subscription
     name: 'nicoshop-$(environment)'
@@ -66,6 +106,7 @@ steps:
 
 - task: AzureCLI@2
   displayName: Build and push container images to ACR
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
   inputs:
     azureSubscription: 'Azure subscription 1 (62ed0d45-af9c-47cb-9fbf-9471d8b84fec)'
     scriptType: bash

@@ -15,13 +15,9 @@ param location string = 'centralus'
 @description('App Service Plan SKU.')
 param skuName string = 'B1'
 
-@allowed(['8', '11', '17', '21'])
-param javaVersion string = '17'
-
-@allowed(['JAVA', 'TOMCAT'])
-param javaContainer string = 'JAVA'
-
 var suffix = uniqueString(subscription().subscriptionId, resourceGroupName)
+var acrName = 'devopsacr${suffix}'
+var acrLoginServer = '${acrName}.azurecr.io'
 var tags = {
   app: baseName
   environment: environment
@@ -53,7 +49,7 @@ module devopsACR 'modules/containerRegistry.bicep' = {
   name: 'containerRegistry'
   scope: resourceGroup(resourceGroupName)
   params: {
-    name: 'devopsacr${suffix}'
+    name: acrName
     location: location
     tags: tags
   }
@@ -66,13 +62,23 @@ module app 'modules/appService.bicep' = {
     name: 'app-${baseName}-${environment}-${suffix}'
     location: location
     appServicePlanId: plan.outputs.id
-    javaVersion: javaVersion
-    javaContainer: javaContainer
+    containerImage: '${acrLoginServer}/backend:${environment}-latest'
     tags: tags
     appSettings: [
-      { name: 'SPRING_PROFILES_ACTIVE', value: environment }
+      { name: 'ASPNETCORE_ENVIRONMENT', value: environment }
       { name: 'WEBSITES_PORT', value: '8080' }
     ]
+  }
+  dependsOn: [devopsACR]
+}
+
+module acrPullRole 'modules/acrPullRoleAssignment.bicep' = {
+  name: 'acrPullRoleAssignment'
+  scope: resourceGroup(resourceGroupName)
+  params: {
+    registryName: devopsACR.outputs.name
+    appName: app.outputs.name
+    principalId: app.outputs.principalId
   }
 }
 

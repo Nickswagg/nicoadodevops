@@ -1,0 +1,81 @@
+trigger:
+  branches:
+    include:
+    - development
+    - qa
+    - production
+  paths:
+    include:
+    - three-tier-ecommerce/**
+
+variables:
+- ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/development') }}:
+  - group: dev
+- ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/qa') }}:
+  - group: qa
+- ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/production') }}:
+  - group: prod
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- bash: |
+    case "$BUILD_SOURCEBRANCH" in
+      refs/heads/development) expected_environment=dev ;;
+      refs/heads/qa) expected_environment=qa ;;
+      refs/heads/production) expected_environment=prod ;;
+      *) echo "Unsupported image-build branch '$BUILD_SOURCEBRANCH'."; exit 1 ;;
+    esac
+
+    environment=$(printf '%s' "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]')
+    if [ "$environment" != "$expected_environment" ]; then
+      echo "Variable group environment '$environment' does not match branch environment '$expected_environment'."
+      exit 1
+    fi
+    echo "##vso[task.setvariable variable=environment]$environment"
+  displayName: Validate image target environment
+  env:
+    ENVIRONMENT: $(environment)
+    BUILD_SOURCEBRANCH: $(Build.SourceBranch)
+
+- task: AzureCLI@2
+  displayName: Build and push images to $(environment) ACR
+  inputs:
+    azureSubscription: 'Azure subscription 1 (62ed0d45-af9c-47cb-9fbf-9471d8b84fec)'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+
+      resource_group="rg-nicoshop-${ENVIRONMENT}"
+      acr_name=$(az acr list \
+        --resource-group "$resource_group" \
+        --query '[0].name' \
+        --output tsv)
+
+      if [ -z "$acr_name" ] || [ "$acr_name" = "None" ]; then
+        echo "No Azure Container Registry found in '$resource_group'. Deploy infrastructure first."
+        exit 1
+      fi
+
+      login_server=$(az acr show \
+        --name "$acr_name" \
+        --query loginServer \
+        --output tsv)
+      version_tag="${ENVIRONMENT}-${BUILD_ID}"
+      stable_tag="${ENVIRONMENT}-latest"
+
+      az acr login --name "$acr_name"
+
+      for image in frontend backend database; do
+        docker build \
+          --tag "${login_server}/${image}:${version_tag}" \
+          --tag "${login_server}/${image}:${stable_tag}" \
+          "three-tier-ecommerce/${image}"
+        docker push "${login_server}/${image}:${version_tag}"
+        docker push "${login_server}/${image}:${stable_tag}"
+      done
+  env:
+    ENVIRONMENT: $(environment)
+    BUILD_ID: $(Build.BuildId)

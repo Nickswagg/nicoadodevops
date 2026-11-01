@@ -15,10 +15,9 @@ param location string = 'centralus'
 @description('App Service Plan SKU.')
 param skuName string = 'B1'
 
-@description('Container image reference used by the App Service. The initial deployment uses the public .NET 8 runtime image until the pipeline pushes the application image.')
-param containerImage string = 'mcr.microsoft.com/dotnet/aspnet:8.0'
-
 var suffix = uniqueString(subscription().subscriptionId, resourceGroupName)
+var acrName = 'devopsacr${suffix}'
+var acrLoginServer = '${acrName}.azurecr.io'
 var tags = {
   app: baseName
   environment: environment
@@ -50,7 +49,7 @@ module devopsACR 'modules/containerRegistry.bicep' = {
   name: 'containerRegistry'
   scope: resourceGroup(resourceGroupName)
   params: {
-    name: 'devopsacr${suffix}'
+    name: acrName
     location: location
     tags: tags
   }
@@ -63,13 +62,14 @@ module app 'modules/appService.bicep' = {
     name: 'app-${baseName}-${environment}-${suffix}'
     location: location
     appServicePlanId: plan.outputs.id
-    containerImage: containerImage
+    containerImage: '${acrLoginServer}/backend:${environment}-latest'
     tags: tags
     appSettings: [
       { name: 'ASPNETCORE_ENVIRONMENT', value: environment }
       { name: 'WEBSITES_PORT', value: '8080' }
     ]
   }
+  dependsOn: [devopsACR]
 }
 
 module acrPullRole 'modules/acrPullRoleAssignment.bicep' = {

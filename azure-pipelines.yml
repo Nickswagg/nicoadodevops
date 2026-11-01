@@ -1,15 +1,12 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
   branches:
     include:
-    - main
     - development
     - qa
     - production
+  paths:
+    include:
+    - infra/**
 
 variables:
 - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/development') }}:
@@ -23,68 +20,27 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-
-- task: UseDotNet@2
-  displayName: Install .NET 8 SDK
-  inputs:
-    packageType: sdk
-    version: 8.0.x
-
-- task: DotNetCoreCLI@2
-  displayName: Restore backend dependencies
-  inputs:
-    command: restore
-    projects: three-tier-ecommerce/backend/Store.Api.csproj
-
-- task: DotNetCoreCLI@2
-  displayName: Build backend
-  inputs:
-    command: build
-    projects: three-tier-ecommerce/backend/Store.Api.csproj
-    arguments: '--configuration Release --no-restore'
-
-- task: DotNetCoreCLI@2
-  displayName: Publish backend
-  inputs:
-    command: publish
-    publishWebProjects: false
-    projects: three-tier-ecommerce/backend/Store.Api.csproj
-    arguments: '--configuration Release --no-build --output $(Build.ArtifactStagingDirectory)/backend'
-    zipAfterPublish: false
-
-- task: PublishPipelineArtifact@1
-  displayName: Publish backend build artifact
-  inputs:
-    targetPath: '$(Build.ArtifactStagingDirectory)/backend'
-    artifact: backend-drop
-    publishLocation: pipeline
-
 - bash: |
     case "$BUILD_SOURCEBRANCH" in
       refs/heads/development) expected_environment=dev ;;
       refs/heads/qa) expected_environment=qa ;;
       refs/heads/production) expected_environment=prod ;;
-      *) echo "Unsupported branch '$BUILD_SOURCEBRANCH'."; exit 1 ;;
+      *) echo "Unsupported infrastructure branch '$BUILD_SOURCEBRANCH'."; exit 1 ;;
     esac
 
-    ENVIRONMENT=$(printf '%s' "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]')
-    case "$ENVIRONMENT" in
-      dev|qa|prod) ;;
-      *) echo "Unsupported environment '$ENVIRONMENT'. Check the selected variable group."; exit 1 ;;
-    esac
-    if [ "$ENVIRONMENT" != "$expected_environment" ]; then
-      echo "Variable group environment '$ENVIRONMENT' does not match branch environment '$expected_environment'."
+    environment=$(printf '%s' "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]')
+    if [ "$environment" != "$expected_environment" ]; then
+      echo "Variable group environment '$environment' does not match branch environment '$expected_environment'."
       exit 1
     fi
-    echo "##vso[task.setvariable variable=environment]$ENVIRONMENT"
-  displayName: Validate deployment environment
-  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
+    echo "##vso[task.setvariable variable=environment]$environment"
+  displayName: Validate infrastructure environment
   env:
     ENVIRONMENT: $(environment)
     BUILD_SOURCEBRANCH: $(Build.SourceBranch)
 
 - task: replacetokens@7
-  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
+  displayName: Set environment in Bicep parameters
   inputs:
     root: '$(System.DefaultWorkingDirectory)'
     sources: 'infra/main.bicepparam'
@@ -93,72 +49,12 @@ steps:
     tokenSuffix: '}#'
 
 - task: BicepDeploy@0
-  displayName: 'Bicep deploy $(environment)'
-  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
+  displayName: 'Deploy $(environment) infrastructure'
   inputs:
     scope: subscription
-    name: 'nicoshop-$(environment)'
+    name: 'nicoshop-infra-$(environment)'
     azureResourceManagerConnection: 'Azure subscription 1 (62ed0d45-af9c-47cb-9fbf-9471d8b84fec)'
     subscriptionId: '62ed0d45-af9c-47cb-9fbf-9471d8b84fec'
     location: 'Central US'
     templateFile: infra/main.bicep
     parametersFile: infra/main.bicepparam
-
-- task: AzureCLI@2
-  displayName: Build and push container images to ACR
-  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
-  inputs:
-    azureSubscription: 'Azure subscription 1 (62ed0d45-af9c-47cb-9fbf-9471d8b84fec)'
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      set -euo pipefail
-
-      resource_group="rg-nicoshop-${ENVIRONMENT}"
-      acr_name=$(az acr list \
-        --resource-group "$resource_group" \
-        --query '[0].name' \
-        --output tsv)
-
-      if [ -z "$acr_name" ] || [ "$acr_name" = "None" ]; then
-        echo "No Azure Container Registry found in resource group '$resource_group'."
-        exit 1
-      fi
-
-      login_server=$(az acr show \
-        --name "$acr_name" \
-        --query loginServer \
-        --output tsv)
-      image_tag="${ENVIRONMENT}-${BUILD_ID}"
-
-      az acr login --name "$acr_name"
-
-      docker build -t "${login_server}/frontend:${image_tag}" three-tier-ecommerce/frontend
-      docker build -t "${login_server}/backend:${image_tag}" three-tier-ecommerce/backend
-      docker build -t "${login_server}/database:${image_tag}" three-tier-ecommerce/database
-
-      docker push "${login_server}/frontend:${image_tag}"
-      docker push "${login_server}/backend:${image_tag}"
-      docker push "${login_server}/database:${image_tag}"
-      echo "##vso[task.setvariable variable=backendImage]${login_server}/backend:${image_tag}"
-  env:
-    ENVIRONMENT: $(environment)
-    BUILD_ID: $(Build.BuildId)
-
-- task: AzureCLI@2
-  displayName: Deploy backend image to App Service
-  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/development', 'refs/heads/qa', 'refs/heads/production'))
-  inputs:
-    azureSubscription: 'Azure subscription 1 (62ed0d45-af9c-47cb-9fbf-9471d8b84fec)'
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      set -euo pipefail
-      az deployment sub create \
-        --name "nicoshop-${ENVIRONMENT}-container" \
-        --location 'Central US' \
-        --template-file infra/main.bicep \
-        --parameters infra/main.bicepparam "containerImage=${BACKEND_IMAGE}"
-  env:
-    ENVIRONMENT: $(environment)
-    BACKEND_IMAGE: $(backendImage)
